@@ -77,9 +77,11 @@
   <ItemGroup>
     <ClCompile Include="EpollData.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="Socket.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="EpollData.h" />
+    <ClInclude Include="Socket.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Epoll封装学习总结.md" />
