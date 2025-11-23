@@ -6,6 +6,7 @@
 #include <arpa/inet.h>
 #include <string>
 #include <cstring>
+#include <fcntl.h>  
 
 class Buffer : public std::string
 {
@@ -116,11 +117,11 @@ public:
 
     // 获取TCP/UDP地址指针（类型转换为sockaddr*）
     // 用途：bind(fd, param.addrin(), sizeof(sockaddr_in))
-    sockaddr* addrin() { return (sockaddr*)&addr_in; }
+    sockaddr* addrin() const { return (sockaddr*)&addr_in; }
 
     // 获取Unix域地址指针（类型转换为sockaddr*）
     // 用途：bind(fd, param.addrun(), sizeof(sockaddr_un))
-    sockaddr* addrun() { return (sockaddr*)&addr_un; }
+    sockaddr* addrun() const { return (sockaddr*)&addr_un; }
 
     // -------------------- 成员变量 --------------------
 public:
@@ -244,10 +245,43 @@ class CLocalSocket :public CSocketBase {
 
     // 关闭socket
     virtual int Close() override;
+private:
+    CSockParam m_param;
 };
 
 
+class CTcpSocket : public CSocketBase {
+public:
+    // ========== 构造函数（和CLocalSocket一样） ==========
+    CTcpSocket() : CSocketBase() {}
+    CTcpSocket(int sock) : CSocketBase() { m_socket = sock; }
+    virtual ~CTcpSocket() { Close(); }
 
+    // ========== 纯虚函数实现 ==========
+    virtual int Init(const CSockParam& param) override;
+    virtual int Link(CSocketBase** pClient = NULL) override;
+    virtual int Send(const Buffer& data) override;
+    virtual int Recv(Buffer& data) override;
+    virtual int Close() override;
+
+protected:
+    CSockParam m_param;  // 保存参数
+};
+
+class CUdpSocket : public CSocketBase {
+public:
+    CUdpSocket() : CSocketBase() {}
+    virtual ~CUdpSocket() { Close(); }
+
+    virtual int Init(const CSockParam& param) override;
+    virtual int Link(CSocketBase** pClient = NULL) override;
+    virtual int Send(const Buffer& data) override;
+    virtual int Recv(Buffer& data) override;
+    virtual int Close() override;
+
+protected:
+    CSockParam m_param;
+};
 
 class Socket
 {
