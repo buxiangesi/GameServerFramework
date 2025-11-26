@@ -9,7 +9,7 @@
 #include <cstring>       // ← 新增
 #include <fcntl.h>       // ← 新增
 #include <sys/stat.h>    // ← 新增
-#include "EpollData.h"
+#include "Epoll.h"
 class CProcess
 {
 public:

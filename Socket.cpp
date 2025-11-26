@@ -104,7 +104,7 @@ int CLocalSocket::Send(const Buffer& data) {
     }
 
     // 第2步：发送数据
-    int ret = send(m_socket, data, data.size(), 0);
+    int ret = send(m_socket, (const char*)data.c_str(), data.size(), 0);
 
     // 第3步：返回结果
     return ret;  // 返回发送的字节数，-1表示失败
@@ -117,7 +117,7 @@ int CLocalSocket::Recv(Buffer& data) {
     }
 
     // 第2步：接收数据
-    int ret = recv(m_socket, data, data.size(), 0);
+    int ret = recv(m_socket, (char*)data.c_str(), data.size(), 0);
 
     // 第3步：返回结果
     return ret;  // >0:接收字节数, 0:连接关闭, -1:失败
@@ -230,13 +230,13 @@ int CTcpSocket::Link(CSocketBase * *pClient) {
 // ========== Send函数（和CLocalSocket完全一样） ==========
 int CTcpSocket::Send(const Buffer & data) {
     if (m_status != 2) return -1;
-    return send(m_socket, data, data.size(), 0);
+    return send(m_socket, (const char*)data.c_str(), data.size(), 0);
 }
 
 // ========== Recv函数（和CLocalSocket完全一样） ==========
 int CTcpSocket::Recv(Buffer& data) {
     if (m_status != 2) return -1;
-    return recv(m_socket, data, data.size(), 0);
+    return recv(m_socket, (char*)data.c_str(), data.size(), 0);
 }
 
 // ========== Close函数（和CLocalSocket完全一样） ==========
@@ -302,7 +302,7 @@ int CUdpSocket::Send(const Buffer & data) {
     if (m_status != 2) return -1;
 
     // ========== 使用sendto()，需要指定目标地址 ==========
-    int ret = sendto(m_socket, data, data.size(), 0,
+    int ret = sendto(m_socket, (const char*)data.c_str(), data.size(), 0,
         m_param.addrin(), sizeof(sockaddr_in));
     //        ↑↑↑↑↑↑                           ↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑
     //        sendto（不是send）                 目标地址
@@ -326,7 +326,7 @@ int CUdpSocket::Recv(Buffer & data) {
     sockaddr_in from_addr;
     socklen_t len = sizeof(from_addr);
 
-    int ret = recvfrom(m_socket, data, data.size(), 0,
+    int ret = recvfrom(m_socket, (char*)data.c_str(), data.size(), 0,
         (sockaddr*)&from_addr, &len);
     //        ↑↑↑↑↑↑↑↑                    ↑↑↑↑↑↑↑↑↑↑↑↑
     //        recvfrom（不是recv）          接收发送方地址
