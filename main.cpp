@@ -3,6 +3,7 @@
 #include <functional>
 #include <memory>
 #include <utility>
+#include <string>        // ← 新增：std::string
 #include <sys/wait.h>
 #include <stdlib.h>
 #include <sys/socket.h>  // ← 新增
@@ -10,6 +11,7 @@
 #include <fcntl.h>       // ← 新增
 #include <sys/stat.h>    // ← 新增
 #include "Epoll.h"
+#include "Thread.h"      // ← 新增：线程封装
 class CProcess
 {
 public:
@@ -520,6 +522,96 @@ int TestEpoll()
 
     return 0;
 }
+
+// ==========================================
+// 线程测试函数
+// ==========================================
+
+// 测试任务1：简单的计数任务
+int SimpleTask(int count) {
+    printf("[任务1] 线程启动，参数: %d\n", count);
+
+    for (int i = 0; i < count; i++) {
+        printf("[任务1] 工作中... %d/%d\n", i + 1, count);
+        sleep(1);
+    }
+
+    printf("[任务1] 任务完成！\n");
+    return 0;
+}
+
+// 测试任务2：可暂停的任务
+int PausableTask() {
+    printf("[任务2] 线程启动\n");
+
+    for (int i = 0; i < 20; i++) {
+        printf("[任务2] 工作中... %d/20\n", i + 1);
+        sleep(1);
+    }
+
+    printf("[任务2] 任务完成！\n");
+    return 0;
+}
+
+int TestThread()
+{
+    printf("=== 线程封装测试程序（简化版）===\n\n");
+
+    // ==========================================
+    // 简化测试：只测试暂停功能
+    // ==========================================
+    printf("【简化测试】暂停和恢复\n");
+    printf("----------------------------------------\n");
+
+    CThread t2(PausableTask);
+
+    printf("[主线程] 启动线程...\n");
+    int ret = t2.Start();
+    if (ret != 0) {
+        printf("[主线程] 启动失败: %d\n", ret);
+        return -2;
+    }
+    printf("[主线程] Start() 完成\n");
+
+    printf("[主线程] 等待1秒，确保信号注册完成...\n");  // ← 新增
+    sleep(1);  // ← 新增：等待信号注册
+
+    printf("[主线程] 让线程运行3秒...\n");
+    sleep(3);
+
+    printf("[主线程] 准备暂停线程！\n");
+    ret = t2.Pause();
+    if (ret != 0) {
+        printf("[主线程] 暂停失败: %d\n", ret);
+        return -3;
+    }
+    printf("[主线程] Pause() 调用成功\n");
+
+    printf("[主线程] 线程已暂停，等待3秒...\n");
+    sleep(3);
+
+    printf("[主线程] 准备恢复线程！\n");
+    ret = t2.Pause();  // 再次调用 Pause 表示恢复
+    if (ret != 0) {
+        printf("[主线程] 恢复失败: %d\n", ret);
+        return -4;
+    }
+    printf("[主线程] 线程已恢复\n");
+
+    printf("[主线程] 让线程继续运行3秒...\n");
+    sleep(3);
+
+    printf("[主线程] 准备停止线程...\n");
+    ret = t2.Stop();
+    if (ret != 0) {
+        printf("[主线程] 停止失败: %d\n", ret);
+    }
+    printf("[主线程] Stop() 完成\n");
+
+    printf("\n=== 测试完成了2333！===\n");
+    return 0;
+}
+
 int main()
 {
 #pragma region 第一日测试
@@ -705,7 +797,11 @@ int main()
 #pragma endregion
 
 #pragma region testepoll
-       return TestEpoll();
+    //return TestEpoll();
+#pragma endregion
+
+#pragma region 测试线程封装
+    return TestThread();
 #pragma endregion
 
 }
