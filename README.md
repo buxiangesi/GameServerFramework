@@ -463,7 +463,8 @@ in the Software without restriction...
 
 - **项目主页**：https://github.com/buxiangesi/GameServerFramework
 - **问题反馈**：https://github.com/buxiangesi/GameServerFramework/issues
-- **邮箱**：buxiangesi@example.com
+- **作者**：东北大学本科生（985高校）
+- **邮箱**：1258832751@qq.com
 
 ---
 
