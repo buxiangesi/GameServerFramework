@@ -13,6 +13,11 @@ class Buffer : public std::string
 public:
     Buffer() : std::string() {}
     Buffer(size_t size) : std::string() { resize(size); }
+    // ⭐ 添加这个构造函数：从const char*构造
+    Buffer(const char* str) : std::string(str) {}
+
+    // ⭐ 添加这个构造函数：从std::string构造
+    Buffer(const std::string& str) : std::string(str) {}
     operator char* () { return (char*)c_str(); }
     operator char* () const { return (char*)c_str(); }
     operator const char* () const { return c_str(); }
@@ -139,6 +144,12 @@ public:
 class CSocketBase
 {
 public:
+    // ========== 添加构造函数 ==========
+    CSocketBase() {
+        m_socket = -1;  // 初始化为无效描述符
+        m_status = 0;   // 初始化为未初始化状态
+    }
+
     // -------------------- 虚析构函数 --------------------
 
     // 虚析构函数：确保子类对象通过基类指针删除时正确析构
@@ -214,7 +225,7 @@ protected:
   //三种协议的操作步骤完全不同！
 class CLocalSocket :public CSocketBase {
     // -------------------- 构造函数 --------------------
-
+public:
      // 默认构造函数
     CLocalSocket() : CSocketBase() {}
 

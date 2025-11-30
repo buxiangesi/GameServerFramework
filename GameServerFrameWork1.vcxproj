@@ -76,12 +76,14 @@
   <PropertyGroup Label="UserMacros" />
   <ItemGroup>
     <ClCompile Include="Epoll.cpp" />
+    <ClCompile Include="Logger.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Socket.cpp" />
     <ClCompile Include="Thread.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Epoll.h" />
+    <ClInclude Include="Logger.h" />
     <ClInclude Include="Socket.h" />
     <ClInclude Include="Thread.h" />
   </ItemGroup>
