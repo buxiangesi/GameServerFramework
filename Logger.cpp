@@ -52,3 +52,27 @@
 
     return 0;
 }
+ void CLoggerServer::WriteLog(const Buffer& data) {
+     // 防御式编程：检查文件句柄是否有效
+     if (m_file != NULL) {
+         // 步骤1：写入日志数据到文件
+         // 参数：(数据指针, 元素大小=1字节, 元素个数=数据长度, 文件句柄)
+         fwrite((char*)data, 1, data.size(), m_file);
+
+         // 步骤2：立即刷新缓冲区到磁盘
+         // 重要：确保程序崩溃时日志不丢失
+         fflush(m_file);
+
+         // 步骤3：Debug模式下输出到控制台（方便开发调试）
+#ifdef _DEBUG
+         printf("%s", (char*)data);
+#endif
+     }
+
+
+
+
+
+
+
+ }
