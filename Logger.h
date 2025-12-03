@@ -242,36 +242,110 @@ inline int CLoggerServer::Close() {
     return 0;
 }
 
-// Trace静态方法（占位，下次详细实现）
-inline void CLoggerServer::Trace(const LogInfo& info) {
-    // TODO: 下次实现
-    // 1. 获取thread_local的Socket
-    // 2. 连接到服务器（如果未连接）
-    // 3. 发送日志数据
+static void Trace(const LogInfo& info) {
+    // 每个线程独立的socket连接
+    static thread_local CLocalSocket client;
+
+    // 懒加载：第一次调用时连接
+    if (client == -1) {
+        int ret = client.Init(CSockParam("./log/server.sock", 0));
+        if (ret != 0) {
+#ifdef _DEBUG
+            printf("%s(%d):[%s]连接日志服务器失败 ret=%d\n",
+                __FILE__, __LINE__, __FUNCTION__, ret);
+#endif
+            return;
+        }
+    }
+
+    // 发送日志数据
+    client.Send(info);
 }
 
-// GetTimeStr静态方法（占位，下次详细实现）
-inline Buffer CLoggerServer::GetTimeStr() {
-    // TODO: 下次实现
-    // 1. 获取当前时间
-    // 2. 格式化为字符串
-    // 3. 返回Buffer
-    return Buffer();
-}
+
+
 
 // ThreadFunc线程函数（占位，下次详细实现）
 inline int CLoggerServer::ThreadFunc() {
-    // TODO: 下次实现
-    // 1. epoll事件循环
-    // 2. 处理新连接
-    // 3. 接收日志数据
-    // 4. 写入文件
+    EPEvents events;
+    std::map<int, CSocketBase*> mapClients;
+
+    // 主事件循环：三重保险退出条件
+    while (m_thread.isValid() && (m_epoll != -1) && (m_server != NULL)) {
+        // 等待事件（1ms超时：平衡响应速度和CPU占用）
+        ssize_t ret = m_epoll.WaitEvents(events, 1);
+        if (ret < 0) break;  // epoll出错
+
+        if (ret > 0) {
+            ssize_t i = 0;
+            for (; i < ret; i++) {
+                // 检查错误事件
+                if (events[i].events & EPOLLERR) {
+                    break;  // 快速失败
+                }
+                // 处理可读事件
+                else if (events[i].events & EPOLLIN) {
+                    // 判断：新连接 vs 数据到达
+                    if (events[i].data.ptr == m_server) {
+                        // ========== 新连接 ==========
+                        CSocketBase* pClient = NULL;
+                        int r = m_server->Link(&pClient);
+                        if (r < 0) continue;
+
+                        // 添加到epoll（存储pClient指针到data.ptr）
+                        r = m_epoll.Add(*pClient, EpollData((void*)pClient),
+                            EPOLLIN | EPOLLERR);
+                        if (r < 0) {
+                            delete pClient;
+                            continue;
+                        }
+
+                        // 存入客户端容器（检查fd复用）
+                        int fd = (int)(*pClient);  // ✅ 修复：显式转换
+                        auto it = mapClients.find(fd);
+                        if (it != mapClients.end() && it->second != NULL) {
+                            delete it->second;  // 删除旧客户端
+                        }
+                        mapClients[fd] = pClient;
+                    }
+                    else {
+                        // ========== 数据到达 ==========
+                        CSocketBase* pClient = (CSocketBase*)events[i].data.ptr;
+                        if (pClient != NULL) {
+                            Buffer data(1024 * 1024);  // 1MB缓冲区
+                            int r = pClient->Recv(data);
+
+                            if (r <= 0) {
+                                // 连接断开
+                                int fd = (int)(*pClient);  // ✅ 修复：显式转换
+                                delete pClient;
+                                mapClients[fd] = NULL;  //标记删除，避免遍历中erase
+                            }
+                            else {
+                                // 写入日志
+                                WriteLog(data);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 检测循环提前退出（遇到EPOLLERR）
+            if (i != ret) {
+                break;
+            }
+        }
+    }
+
+    // 退出清理：删除所有客户端
+    for (auto it = mapClients.begin(); it != mapClients.end(); it++) {
+        if (it->second) {
+            delete it->second;
+        }
+    }
+    mapClients.clear();
+
     return 0;
 }
 
-// WriteLog私有方法（占位，下次详细实现）
-inline void CLoggerServer::WriteLog(const Buffer& data) {
-    // TODO: 下次实现
-    // fwrite(data, ..., m_file);
-    // fflush(m_file);
-}
+

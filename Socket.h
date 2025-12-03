@@ -163,7 +163,8 @@ public:
             close(fd);          // 再关闭fd
         }
     }
-
+    virtual operator int() { return m_socket; }
+    virtual operator int() const { return m_socket; }
     // -------------------- 纯虚函数（子类必须实现） --------------------
 
     // 初始化socket
