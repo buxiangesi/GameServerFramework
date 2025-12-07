@@ -6,20 +6,68 @@
 #include <sys/timeb.h>
 #include <sys/stat.h>
 #include <sys/timeb.h>
+#include <stdarg.h>      // va_list, va_start, va_end（可变参数）
+#include <sstream>       // std::stringstream（流式输出）
+#include <sys/types.h>   // pid_t
+#include <unistd.h>      // getpid()
+#include <pthread.h>     // pthread_t, pthread_self()
 // ============================================
 // LogInfo类 - 日志信息封装（阶段5实现）
 // ============================================
+enum LogLevel {
+    LOG_INFO,      // 0
+    LOG_DEBUG,     // 1
+    LOG_WARNING,   // 2
+    LOG_ERROR,     // 3
+    LOG_FATAL      // 4
+};
+// ==================== 2. LogInfo类声明 ====================
 class LogInfo {
 public:
-    LogInfo() {}
-    ~LogInfo() {}
+    // 构造函数1：printf风格（可变参数）
+    // 用法：TRACEI("User: %d", userId)
+    LogInfo(
+        const char* file, int line, const char* func,
+        pid_t pid, pthread_t tid, int level,
+        const char* fmt, ...);  // 格式字符串 + 可变参数
 
-    // 类型转换操作符：将LogInfo转换为Buffer（后续实现）
+    // 构造函数2：流式输出风格
+    // 用法：LOGI << "User: " << userId
+    LogInfo(
+        const char* file, int line, const char* func,
+        pid_t pid, pthread_t tid, int level);
+
+    // 构造函数3：内存dump风格
+    // 用法：DUMPI(buffer, 256)
+    LogInfo(
+        const char* file, int line, const char* func,
+        pid_t pid, pthread_t tid, int level,
+        void* pData, size_t nSize);  // 内存地址 + 字节数
+
+    // 析构函数（流式输出风格会在这里自动发送日志）
+    ~LogInfo();
+
+    // 类型转换运算符：让LogInfo能转换为Buffer（给Trace()用）
     operator Buffer() const {
-        // TODO: 后续实现
-        return Buffer();
+        return m_buf;
     }
+
+    // 流式输出运算符：支持 << 操作（链式调用）
+    template<typename T>
+    LogInfo& operator<<(const T& data) {
+        std::stringstream stream;
+        stream << data;           // 转换为字符串
+        m_buf += stream.str();    // 追加到缓冲区
+        return *this;             // 返回自己（支持链式调用）
+    }
+
+private:
+    bool bAuto;    // 标志位：false=手动发送（printf/dump）,
+    //true = 析构时自动发送（流式输出）
+      Buffer m_buf;  // 日志内容缓冲区
 };
+
+
 
 // ============================================
 // CLoggerServer类 - 异步日志服务器
@@ -242,29 +290,6 @@ inline int CLoggerServer::Close() {
     return 0;
 }
 
-static void Trace(const LogInfo& info) {
-    // 每个线程独立的socket连接
-    static thread_local CLocalSocket client;
-
-    // 懒加载：第一次调用时连接
-    if (client == -1) {
-        int ret = client.Init(CSockParam("./log/server.sock", 0));
-        if (ret != 0) {
-#ifdef _DEBUG
-            printf("%s(%d):[%s]连接日志服务器失败 ret=%d\n",
-                __FILE__, __LINE__, __FUNCTION__, ret);
-#endif
-            return;
-        }
-    }
-
-    // 发送日志数据
-    client.Send(info);
-}
-
-
-
-
 // ThreadFunc线程函数（占位，下次详细实现）
 inline int CLoggerServer::ThreadFunc() {
     EPEvents events;
@@ -347,5 +372,49 @@ inline int CLoggerServer::ThreadFunc() {
 
     return 0;
 }
+// ==================== 3. 宏定义（用户接口）====================
+#ifndef TRACE
+
+// -------- TRACE系列：printf风格 --------
+// 用法：TRACEI("User %d login", userId);
+#define TRACEI(...) CLoggerServer::Trace(LogInfo(__FILE__, __LINE__,
+    __FUNCTION__, getpid(), pthread_self(), LOG_INFO, __VA_ARGS__))
+#define TRACED(...) CLoggerServer::Trace(LogInfo(__FILE__, __LINE__,
+    __FUNCTION__, getpid(), pthread_self(), LOG_DEBUG, __VA_ARGS__))
+#define TRACEW(...) CLoggerServer::Trace(LogInfo(__FILE__, __LINE__,
+    __FUNCTION__, getpid(), pthread_self(), LOG_WARNING, __VA_ARGS__))
+#define TRACEE(...) CLoggerServer::Trace(LogInfo(__FILE__, __LINE__,
+    __FUNCTION__, getpid(), pthread_self(), LOG_ERROR, __VA_ARGS__))
+#define TRACEF(...) CLoggerServer::Trace(LogInfo(__FILE__, __LINE__,
+    __FUNCTION__, getpid(), pthread_self(), LOG_FATAL, __VA_ARGS__))
+
+    // -------- LOG系列：流式输出风格 --------
+    // 用法：LOGI << "User " << userId << " login";
+#define LOGI LogInfo(__FILE__, __LINE__, __FUNCTION__, getpid(), pthread_self(),
+    LOG_INFO)
+#define LOGD LogInfo(__FILE__, __LINE__, __FUNCTION__, getpid(), pthread_self(),
+    LOG_DEBUG)
+#define LOGW LogInfo(__FILE__, __LINE__, __FUNCTION__, getpid(), pthread_self(),
+    LOG_WARNING)
+#define LOGE LogInfo(__FILE__, __LINE__, __FUNCTION__, getpid(), pthread_self(),
+    LOG_ERROR)
+#define LOGF LogInfo(__FILE__, __LINE__, __FUNCTION__, getpid(), pthread_self(),
+    LOG_FATAL)
+
+    // -------- DUMP系列：内存dump风格（已修复bug）--------
+    // 用法：DUMPI(buffer, 256);
+    // 输出：十六进制 + ASCII可视化
+#define DUMPI(data, size) CLoggerServer::Trace(LogInfo(__FILE__, __LINE__,
+    __FUNCTION__, getpid(), pthread_self(), LOG_INFO, data, size))
+#define DUMPD(data, size) CLoggerServer::Trace(LogInfo(__FILE__, __LINE__,
+    __FUNCTION__, getpid(), pthread_self(), LOG_DEBUG, data, size))
+#define DUMPW(data, size) CLoggerServer::Trace(LogInfo(__FILE__, __LINE__,
+    __FUNCTION__, getpid(), pthread_self(), LOG_WARNING, data, size))
+#define DUMPE(data, size) CLoggerServer::Trace(LogInfo(__FILE__, __LINE__,
+    __FUNCTION__, getpid(), pthread_self(), LOG_ERROR, data, size))
+#define DUMPF(data, size) CLoggerServer::Trace(LogInfo(__FILE__, __LINE__,
+    __FUNCTION__, getpid(), pthread_self(), LOG_FATAL, data, size))
+
+#endif
 
 

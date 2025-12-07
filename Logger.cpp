@@ -1,6 +1,8 @@
-﻿#include "Logger.h"
-// Start方法（占位，下次详细实现）
- int CLoggerServer::Start() {
+// Logger.cpp - 日志模块实现
+#include "Logger.h"
+
+// ==================== CLoggerServer::Start ====================
+int CLoggerServer::Start() {
     // 第1步：检查是否已启动
     if (m_server != NULL) return -1;
 
@@ -8,22 +10,10 @@
     if (access("log", W_OK | R_OK) != 0) {
         mkdir("log", S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
     }
-    //// mode参数（权限位）：
-    //S_IRUSR   // User Read    (400)  所有者可读
-    //    S_IWUSR   // User Write   (200)  所有者可写
-    //    S_IRGRP   // Group Read   (040)  组可读
-    //    S_IWGRP   // Group Write  (020)  组可写
-    //    S_IROTH   // Other Read   (004)  其他人可读
 
     // 第3步：打开日志文件
     m_file = fopen(m_path, "w+");
     if (m_file == NULL) return -2;
-    //// mode参数：
-    //"r"   // 只读，文件必须存在
-    //    "w"   // 只写，文件不存在则创建，存在则清空
-    //    "a"   // 追加，文件不存在则创建
-    //    "w+"  // ⭐ 读写，文件不存在则创建，存在则清空
-    //    "a+"  // 读写，追加模式
 
     // 第4步：创建epoll实例
     int ret = m_epoll.Create(1);
@@ -52,27 +42,162 @@
 
     return 0;
 }
- void CLoggerServer::WriteLog(const Buffer& data) {
-     // 防御式编程：检查文件句柄是否有效
-     if (m_file != NULL) {
-         // 步骤1：写入日志数据到文件
-         // 参数：(数据指针, 元素大小=1字节, 元素个数=数据长度, 文件句柄)
-         fwrite((char*)data, 1, data.size(), m_file);
 
-         // 步骤2：立即刷新缓冲区到磁盘
-         // 重要：确保程序崩溃时日志不丢失
-         fflush(m_file);
-
-         // 步骤3：Debug模式下输出到控制台（方便开发调试）
+// ==================== CLoggerServer::WriteLog ====================
+void CLoggerServer::WriteLog(const Buffer& data) {
+    if (m_file != NULL) {
+        fwrite((char*)data, 1, data.size(), m_file);
+        fflush(m_file);
 #ifdef _DEBUG
-         printf("%s", (char*)data);
+        printf("%s", (char*)data);
 #endif
-     }
+    }
+}
 
+// ==================== LogInfo构造函数1：printf风格 ====================
+LogInfo::LogInfo(
+    const char* file, int line, const char* func,
+    pid_t pid, pthread_t tid, int level,
+    const char* fmt, ...
+)
+{
+    const char sLevel[][8] = {
+        "INFO","DEBUG","WARNING","ERROR","FATAL"
+    };
 
+    char* buf = NULL;
+    bAuto = false;  // printf风格需要手动调用Trace()
 
+    // 格式化日志头
+    int count = asprintf(&buf, "%s(%d):[%s][%s]<%d-%d>(%s) ",
+        file, line, sLevel[level],
+        (char*)CLoggerServer::GetTimeStr(), pid, tid, func);
 
+    if (count > 0) {
+        m_buf = buf;
+        free(buf);
+    }
+    else return;
 
+    // 格式化用户消息
+    va_list ap;
+    va_start(ap, fmt);
+    count = vasprintf(&buf, fmt, ap);
+    if (count > 0) {
+        m_buf += buf;
+        free(buf);
+    }
+    va_end(ap);
+}
 
+// ==================== LogInfo构造函数2：流式输出风格 ====================
+LogInfo::LogInfo(
+    const char* file, int line, const char* func,
+    pid_t pid, pthread_t tid, int level
+)
+{
+    bAuto = true;  // 流式输出需要析构时调用Trace()
 
- }
+    const char sLevel[][8] = {
+        "INFO","DEBUG","WARNING","ERROR","FATAL"
+    };
+
+    char* buf = NULL;
+    int count = asprintf(&buf, "%s(%d):[%s][%s]<%d-%d>(%s) ",
+        file, line, sLevel[level],
+        (char*)CLoggerServer::GetTimeStr(), pid, tid, func);
+
+    if (count > 0) {
+        m_buf = buf;
+        free(buf);
+    }
+}
+
+// ==================== LogInfo构造函数3：dump风格 ====================
+LogInfo::LogInfo(
+    const char* file, int line, const char* func,
+    pid_t pid, pthread_t tid, int level,
+    void* pData, size_t nSize
+)
+{
+    bAuto = false;  // dump风格需要手动调用Trace()
+
+    const char sLevel[][8] = {
+        "INFO","DEBUG","WARNING","ERROR","FATAL"
+    };
+
+    char* buf = NULL;
+    int count = asprintf(&buf, "%s(%d):[%s][%s]<%d-%d>(%s)\n",
+        file, line, sLevel[level],
+        (char*)CLoggerServer::GetTimeStr(), pid, tid, func);
+
+    if (count > 0) {
+        m_buf = buf;
+        free(buf);
+    }
+    else return;
+
+    // 转换二进制数据为十六进制
+    char* Data = (char*)pData;
+    for (size_t i = 0; i < nSize; i++) {
+        char buf[16] = "";
+        snprintf(buf, sizeof(buf), "%02X ", Data[i] & 0xFF);
+        m_buf += buf;
+
+        if (0 == ((i + 1) % 16)) {
+            m_buf += "\t; ";
+            for (size_t j = i - 15; j <= i; j++) {
+                if ((Data[j] & 0xFF) > 31 && (Data[j] & 0xFF) < 0x7F) {
+                    m_buf += Data[j];
+                }
+                else {
+                    m_buf += '.';
+                }
+            }
+            m_buf += "\n";
+        }
+    }
+
+    // 处理末尾不足16字节
+    size_t k = nSize % 16;
+    if (k != 0) {
+        for (size_t j = 0; j < 16 - k; j++)
+            m_buf += "   ";
+        m_buf += "\t; ";
+        for (size_t j = nSize - k; j < nSize; j++) {
+            if ((Data[j] & 0xFF) > 31 && (Data[j] & 0xFF) < 0x7F) {
+                m_buf += Data[j];
+            }
+            else {
+                m_buf += '.';
+            }
+        }
+        m_buf += "\n";
+    }
+}
+
+// ==================== LogInfo析构函数 ====================
+LogInfo::~LogInfo()
+{
+    if (bAuto) {
+        CLoggerServer::Trace(*this);
+    }
+}
+
+// ==================== CLoggerServer::Trace实现 ====================
+void CLoggerServer::Trace(const LogInfo& info) {
+    static thread_local CLocalSocket client;
+
+    if (client == -1) {
+        int ret = client.Init(CSockParam("./log/server.sock", 0));
+        if (ret != 0) {
+#ifdef _DEBUG
+            printf("%s(%d):[%s]连接日志服务器失败 ret=%d\n",
+                __FILE__, __LINE__, __FUNCTION__, ret);
+#endif
+            return;
+        }
+    }
+
+    client.Send(info);
+}
