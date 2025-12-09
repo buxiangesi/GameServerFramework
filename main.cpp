@@ -12,6 +12,8 @@
 #include <sys/stat.h>    // ← 新增
 #include "Epoll.h"
 #include "Thread.h"      // ← 新增：线程封装
+#include"Logger.h"
+#include <iostream>
 class CProcess
 {
 public:
@@ -379,15 +381,29 @@ private:
 
 int CreateLogServer(CProcess* proc)
 {
-    printf("[子进程 %d] 日志服务器启动\n", getpid());
+    // 第1步：创建日志服务器对象
+    CLoggerServer server;
 
-    // 模拟工作
-    for (int i = 0; i < 3; i++) {
-        printf("[日志服务器 %d] 工作中... %d\n", getpid(), i);
-        sleep(1);
+    // 第2步：启动日志服务器
+    int ret = server.Start();
+    if (ret != 0) {
+        printf("%s(%d):<%s> pid=%d errno:%d msg:%s ret:%d\n",
+            __FILE__, __LINE__, __FUNCTION__, getpid(),
+            errno, strerror(errno), ret);
+        return ret;
     }
 
-    printf("[子进程 %d] 日志服务器退出\n", getpid());
+    // 第3步：阻塞等待（接收父进程的控制信号）
+    int fd = 0;
+    while (true) {
+        ret = proc->RecvFD(fd);
+        printf("%s(%d):<%s> fd=%d\n", __FILE__, __LINE__, __FUNCTION__, fd);
+        if (fd <= 0) break;  // 接收到-1表示父进程要求退出
+    }
+
+    // 第4步：关闭日志服务器
+    ret = server.Close();
+    printf("%s(%d):<%s> ret=%d\n", __FILE__, __LINE__, __FUNCTION__, ret);
     return 0;
 }
 
@@ -611,6 +627,17 @@ int TestThread()
     printf("\n=== 测试完成了2333！===\n");
     return 0;
 }
+int LogTest()
+{
+    char buffer[] = "hello 王万鑫! 我是王万鑫";
+    usleep(1000 * 100);
+    TRACEI("here is log %d %c %f %g %s 哈哈 嘻嘻 我是王万鑫", 10, 'A', 1.0f, 2.0,
+        buffer);
+    DUMPD((void*)buffer, (size_t)sizeof(buffer));
+    LOGE << 100 << " " << 'S' << " " << 0.12345f << " " << 1.23456789 << " " <<
+        buffer << " 王万鑫";
+    return 0;
+}
 
 int main()
 {
@@ -801,7 +828,42 @@ int main()
 #pragma endregion
 
 #pragma region 测试线程封装
-    return TestThread();
+   // return TestThread();
 #pragma endregion
+std::cout << "hello" << std::endl;
+CProcess proclog;
+
+// 第1步：创建日志服务器子进程
+proclog.SetEntryFunction(CreateLogServer, &proclog);
+int ret = proclog.CreateSubProcess();
+if (ret != 0) {
+    printf("创建日志服务器失败: %d\n", ret);
+    return -1;
+}
+
+// 第2步：调用 LogTest（此时才能输出日志）
+LogTest();
+
+// ⚡ 第2.5步：等待日志写入完成（重要！）
+printf("[父进程] 等待日志写入文件...\n");
+sleep(1);  // 给日志服务器1秒时间处理
+
+// 第3步：等待用户输入
+printf("[父进程] 日志已写入，按回车键结束程序...\n");
+getchar();  // 按任意键退出
+
+// ⚡ 第4步：发送退出信号给日志服务器子进程
+printf("[父进程] 正在发送退出信号...\n");
+ret = proclog.SendFD(-1);  // ← 发送 -1 表示退出
+if (ret != 0) {
+    printf("[父进程] 发送退出信号失败: %d\n", ret);
+}
+
+// 第5步：等待子进程退出（可选）
+printf("[父进程] 等待日志服务器关闭...\n");
+sleep(1);  // 给子进程一点时间清理资源
+
+printf("[父进程] 程序结束\n");
+return 0;
 
 }

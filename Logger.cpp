@@ -8,7 +8,9 @@ int CLoggerServer::Start() {
 
     // 第2步：创建日志目录
     if (access("log", W_OK | R_OK) != 0) {
-        mkdir("log", S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
+        // ⚡ 修复：添加执行权限（X），否则无法访问目录
+        // 0755 = rwxr-xr-x（用户：读写执行，组：读执行，其他：读执行）
+        mkdir("log", 0755);
     }
 
     // 第3步：打开日志文件
@@ -33,11 +35,18 @@ int CLoggerServer::Start() {
         return -5;
     }
 
-    // 第7步：启动日志线程
-    ret = m_thread.Start();
+    // ⚡ 第7步：把服务器socket添加到epoll监听（关键！）
+    ret = m_epoll.Add(*m_server, EpollData((void*)m_server), EPOLLIN | EPOLLERR);
     if (ret != 0) {
         Close();
         return -6;
+    }
+
+    // 第8步：启动日志线程
+    ret = m_thread.Start();
+    if (ret != 0) {
+        Close();
+        return -7;
     }
 
     return 0;
@@ -88,6 +97,9 @@ LogInfo::LogInfo(
         free(buf);
     }
     va_end(ap);
+
+    // ⚡ 添加换行符（重要！）
+    m_buf += "\n";
 }
 
 // ==================== LogInfo构造函数2：流式输出风格 ====================
@@ -180,6 +192,8 @@ LogInfo::LogInfo(
 LogInfo::~LogInfo()
 {
     if (bAuto) {
+        // ⚡ 流式输出：添加换行符（重要！）
+        m_buf += "\n";
         CLoggerServer::Trace(*this);
     }
 }
@@ -189,7 +203,22 @@ void CLoggerServer::Trace(const LogInfo& info) {
     static thread_local CLocalSocket client;
 
     if (client == -1) {
+        // 第1步：初始化socket
         int ret = client.Init(CSockParam("./log/server.sock", 0));
+        if (ret != 0) {
+#ifdef _DEBUG
+            printf("%s(%d):[%s]初始化socket失败 ret=%d\n",
+                __FILE__, __LINE__, __FUNCTION__, ret);
+#endif
+            return;
+        }
+#ifdef _DEBUG
+        printf("%s(%d):[%s]初始化成功 client=%d\n",
+            __FILE__, __LINE__, __FUNCTION__, (int)client);
+#endif
+
+        // ⚡ 第2步：连接到日志服务器（关键！）
+        ret = client.Link();
         if (ret != 0) {
 #ifdef _DEBUG
             printf("%s(%d):[%s]连接日志服务器失败 ret=%d\n",
@@ -197,7 +226,16 @@ void CLoggerServer::Trace(const LogInfo& info) {
 #endif
             return;
         }
+#ifdef _DEBUG
+        printf("%s(%d):[%s]连接成功 client=%d\n",
+            __FILE__, __LINE__, __FUNCTION__, (int)client);
+#endif
     }
 
-    client.Send(info);
+    // 第3步：发送日志数据
+    int ret = client.Send(info);
+#ifdef _DEBUG
+    printf("%s(%d):[%s]发送日志 ret=%d size=%zu\n",
+        __FILE__, __LINE__, __FUNCTION__, ret, ((Buffer)info).size());
+#endif
 }
