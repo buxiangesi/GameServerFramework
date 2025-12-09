@@ -377,42 +377,42 @@ inline int CLoggerServer::ThreadFunc() {
 
 // -------- TRACE系列：printf风格 --------
 // 用法：TRACEI("User %d login", userId);
-#define TRACEI(...) CLoggerServer::Trace(LogInfo(__FILE__, __LINE__,
+#define TRACEI(...) CLoggerServer::Trace(LogInfo(__FILE__, __LINE__, \
     __FUNCTION__, getpid(), pthread_self(), LOG_INFO, __VA_ARGS__))
-#define TRACED(...) CLoggerServer::Trace(LogInfo(__FILE__, __LINE__,
+#define TRACED(...) CLoggerServer::Trace(LogInfo(__FILE__, __LINE__, \
     __FUNCTION__, getpid(), pthread_self(), LOG_DEBUG, __VA_ARGS__))
-#define TRACEW(...) CLoggerServer::Trace(LogInfo(__FILE__, __LINE__,
+#define TRACEW(...) CLoggerServer::Trace(LogInfo(__FILE__, __LINE__, \
     __FUNCTION__, getpid(), pthread_self(), LOG_WARNING, __VA_ARGS__))
-#define TRACEE(...) CLoggerServer::Trace(LogInfo(__FILE__, __LINE__,
+#define TRACEE(...) CLoggerServer::Trace(LogInfo(__FILE__, __LINE__, \
     __FUNCTION__, getpid(), pthread_self(), LOG_ERROR, __VA_ARGS__))
-#define TRACEF(...) CLoggerServer::Trace(LogInfo(__FILE__, __LINE__,
+#define TRACEF(...) CLoggerServer::Trace(LogInfo(__FILE__, __LINE__, \
     __FUNCTION__, getpid(), pthread_self(), LOG_FATAL, __VA_ARGS__))
 
     // -------- LOG系列：流式输出风格 --------
     // 用法：LOGI << "User " << userId << " login";
-#define LOGI LogInfo(__FILE__, __LINE__, __FUNCTION__, getpid(), pthread_self(),
+#define LOGI LogInfo(__FILE__, __LINE__, __FUNCTION__, getpid(), pthread_self(), \
     LOG_INFO)
-#define LOGD LogInfo(__FILE__, __LINE__, __FUNCTION__, getpid(), pthread_self(),
+#define LOGD LogInfo(__FILE__, __LINE__, __FUNCTION__, getpid(), pthread_self(), \
     LOG_DEBUG)
-#define LOGW LogInfo(__FILE__, __LINE__, __FUNCTION__, getpid(), pthread_self(),
+#define LOGW LogInfo(__FILE__, __LINE__, __FUNCTION__, getpid(), pthread_self(), \
     LOG_WARNING)
-#define LOGE LogInfo(__FILE__, __LINE__, __FUNCTION__, getpid(), pthread_self(),
+#define LOGE LogInfo(__FILE__, __LINE__, __FUNCTION__, getpid(), pthread_self(), \
     LOG_ERROR)
-#define LOGF LogInfo(__FILE__, __LINE__, __FUNCTION__, getpid(), pthread_self(),
+#define LOGF LogInfo(__FILE__, __LINE__, __FUNCTION__, getpid(), pthread_self(), \
     LOG_FATAL)
 
     // -------- DUMP系列：内存dump风格（已修复bug）--------
     // 用法：DUMPI(buffer, 256);
     // 输出：十六进制 + ASCII可视化
-#define DUMPI(data, size) CLoggerServer::Trace(LogInfo(__FILE__, __LINE__,
+#define DUMPI(data, size) CLoggerServer::Trace(LogInfo(__FILE__, __LINE__, \
     __FUNCTION__, getpid(), pthread_self(), LOG_INFO, data, size))
-#define DUMPD(data, size) CLoggerServer::Trace(LogInfo(__FILE__, __LINE__,
+#define DUMPD(data, size) CLoggerServer::Trace(LogInfo(__FILE__, __LINE__, \
     __FUNCTION__, getpid(), pthread_self(), LOG_DEBUG, data, size))
-#define DUMPW(data, size) CLoggerServer::Trace(LogInfo(__FILE__, __LINE__,
+#define DUMPW(data, size) CLoggerServer::Trace(LogInfo(__FILE__, __LINE__, \
     __FUNCTION__, getpid(), pthread_self(), LOG_WARNING, data, size))
-#define DUMPE(data, size) CLoggerServer::Trace(LogInfo(__FILE__, __LINE__,
+#define DUMPE(data, size) CLoggerServer::Trace(LogInfo(__FILE__, __LINE__, \
     __FUNCTION__, getpid(), pthread_self(), LOG_ERROR, data, size))
-#define DUMPF(data, size) CLoggerServer::Trace(LogInfo(__FILE__, __LINE__,
+#define DUMPF(data, size) CLoggerServer::Trace(LogInfo(__FILE__, __LINE__, \
     __FUNCTION__, getpid(), pthread_self(), LOG_FATAL, data, size))
 
 #endif
