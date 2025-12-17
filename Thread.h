@@ -22,11 +22,14 @@ public:
     CThread(F&& func, Args&&... args)
         : m_thread(0), m_bpaused(false)
     {
-        // 用 lambda 捕获参数，创建 std::function
-        m_function = [f = std::forward<F>(func),
-             ...a = std::forward<Args>(args)]() mutable -> int {
-            return f(a...);  // 直接使用捕获的变量
-            };
+        // 使用 std::bind 绑定函数和参数（支持成员函数指针）
+        auto bound = std::bind(std::forward<F>(func), std::forward<Args>(args)...);
+
+        // 封装到 std::function 中
+        m_function = [bound]() mutable -> int {
+            bound();  // 调用绑定的函数
+            return 0;
+        };
     }
 
     // 析构函数
@@ -40,10 +43,14 @@ public:
 
     template<typename F, typename... Args>
     int SetThreadFunc(F&& func, Args&&... args) {
-        m_function = [f = std::forward<F>(func),
-            ... a = std::forward<Args>(args)]() mutable -> int {
-            return f(a...);  // 直接使用捕获的变量
-            };
+        // 使用 std::bind 绑定函数和参数（支持成员函数指针）
+        auto bound = std::bind(std::forward<F>(func), std::forward<Args>(args)...);
+
+        // 封装到 std::function 中
+        m_function = [bound]() mutable -> int {
+            bound();  // 调用绑定的函数
+            return 0;
+        };
         return 0;
     }
     // 检查线程状态
